@@ -4,6 +4,7 @@ This repository contains the code and workflows used to analyze sequencing data 
 
 **Genetics of range expansion and admixture of *Aedes aegypti* populations in California**  
 Melina Campos
+
 Vector Genetics Laboratory, Department of Pathology, Microbiology and Immunology, UC Davis, Davis, CA, USA. 
 
 
