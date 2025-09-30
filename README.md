@@ -3,10 +3,8 @@
 This repository contains the code and workflows used to analyze sequencing data and generate the results presented in:
 
 **Genetics of range expansion and admixture of *Aedes aegypti* populations in California**  
-Melina Campos1, Yoosook Lee2, Katherine Brisco3, Marc Crepeau1, Anthony J. Cornel1,3 and Gregory C. Lanzaro1* 	
-1 Vector Genetics Laboratory, Department of Pathology, Microbiology and Immunology, UC Davis, Davis, CA, USA. 
-2 Florida Medical Entomology Laboratory, Department of Entomology and Nematology, Institute of Food and Agricultural Sciences, University of Florida, Vero Beach, FL, USA.
-3 Mosquito Control Research Laboratory, Department of Entomology and Nematology, University of California, Parlier, CA, USA.
+Melina Campos
+Vector Genetics Laboratory, Department of Pathology, Microbiology and Immunology, UC Davis, Davis, CA, USA. 
 
 
 ---
