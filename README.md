@@ -8,7 +8,6 @@ Melina Campos
 Vector Genetics Laboratory, Department of Pathology, Microbiology and Immunology, UC Davis, Davis, CA, USA. 
 
 
----
 
 ## Contents
 
@@ -24,7 +23,6 @@ Vector Genetics Laboratory, Department of Pathology, Microbiology and Immunology
 - `results/` — example of outputs (figures, tables). enerated.
 - `figures/` — code-generated figures for the manuscript.
 
----
 
 ## Data availability
 
@@ -33,7 +31,6 @@ Due to size, raw and processed genomic data are not stored in this repository.
 Scripts assume you have downloaded and organized data locally — see `data/README.md`.
 
 
----
 
 ## Software requirements
 
