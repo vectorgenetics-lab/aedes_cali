@@ -22,11 +22,7 @@ Melina Campos1, Yoosook Lee2, Katherine Brisco3, Marc Crepeau1, Anthony J. Corne
   - Admixture analysis (ADMIXTURE, CLUMPAK)
   - AIMs detection and nucleotide diversity (VCFtools)
 - `notebooks/` — Jupyter notebooks with exploratory analyses and plotting code.
-- `config/` — configuration files with paths and parameters.
-- `data/` — **does not contain raw WGS data**. Instead:
-  - Instructions to download public data (e.g., Bioproject PRJNA385349).
-  - Small example dataset to test scripts.
-- `results/` — folder where outputs (figures, tables) are generated.
+- `results/` — example of outputs (figures, tables). enerated.
 - `figures/` — code-generated figures for the manuscript.
 
 ---
