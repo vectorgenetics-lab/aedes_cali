@@ -1,0 +1,207 @@
+import sys
+import os
+import glob
+import itertools
+import subprocess
+
+BAM_LIST_FILE = 'bams.txt'
+REFERENCE = '/path_to_genome/AaegL5.fa'
+OUTDIR = 'vcfs'
+
+# Settings
+PLOIDY = 2
+THETA = 0.01 
+MAX_COMPLEX_GAP = -1 
+USE_BEST_N_ALLELES = 32 
+
+
+REGIONS_FILE = 'regions_list.tsv' 
+
+NICE_LEVEL = 0
+
+DATE_CMD = "/bin/date -Is"
+TIME_EXEC = "util/time"
+SPLIT_REF_BY_BAI_DATASIZE_EXEC = "util/split_ref_by_bai_datasize.py"
+VCF_TO_ZARR_EXEC = "util/vcf2zarr.py"
+REGIONS_LIST_TO_VCFS_LIST_EXEC = "util/regions_list_to_vcfs_list.py"
+
+
+## Create REGIONS_FILE if does not exist
+if not os.path.isfile(REGIONS_FILE):
+    shell(
+        SPLIT_REF_BY_BAI_DATASIZE_EXEC+
+        " -r "+REFERENCE+".fai"
+        " -L "+BAM_LIST_FILE+
+        " > "+REGIONS_FILE
+        )
+
+# Ensure OUTDIR exists
+os.makedirs(OUTDIR, exist_ok=True)
+
+
+##########
+
+def read_list_file(filename):
+    with open(filename) as f:
+        items = [x for x in f.read().split('\n') if len(x) > 0]  # we dont want empty lines
+    return items
+
+def regions_file_to_fbregion_outfiles():
+    with open(REGIONS_FILE) as f:
+        lines = [x.split() for x in f.read().split('\n') if len(x) > 0]  # we dont want empty lines
+    return sorted([ os.path.join(OUTDIR, "fbregion-{:06d}.{}:{}-{}.vcf.gz".format(i,x[0],x[1],x[2])) for i,x in enumerate(lines) ])
+
+def regions_file_to_pfilt_outfiles():
+    with open(REGIONS_FILE) as f:
+        lines = [x.split() for x in f.read().split('\n') if len(x) > 0]  # we dont want empty lines
+    return sorted([ os.path.join(OUTDIR, "pfilt-{:06d}.{}:{}-{}.vcf.gz".format(i,x[0],x[1],x[2])) for i,x in enumerate(lines) ])
+
+
+###########
+
+localrules: all, create_regions_file, pconcat, index_vcf, vcf_to_zarr
+
+
+rule all:
+    input:
+        REGIONS_FILE,
+        "vcf_to_zarr.done",
+        
+
+rule create_regions_file:
+    input:
+        read_list_file(BAM_LIST_FILE),
+    output:
+        REGIONS_FILE,
+    log:
+        "create_regions_file.log"
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " "+SPLIT_REF_BY_BAI_DATASIZE_EXEC+
+        " -r "+REFERENCE+".fai {input} > {output}"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+rule fbregion:
+    input:
+        BAM_LIST_FILE,
+        read_list_file(BAM_LIST_FILE),
+    output:
+        out=os.path.join(OUTDIR, "fbregion-{n}.{region}.vcf.gz"),
+    log:
+        os.path.join(OUTDIR, "fbregion-{n}.{region}.log")
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " echo 'region index: {wildcards.n}' &&"
+        " echo 'region: {wildcards.region}' &&"
+        " module load freebayes && which freebayes && freebayes --version && "
+        " module load htslib && which bgzip && bgzip --version && "
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " freebayes"
+        " --region {wildcards.region}"
+        " --fasta-reference "+str(REFERENCE)+
+        " --ploidy "+str(PLOIDY)+
+        " --theta "+str(THETA)+
+        " --max-complex-gap "+str(MAX_COMPLEX_GAP)+
+        " --use-best-n-alleles "+str(USE_BEST_N_ALLELES)+ # performance fix... 0 to disable
+        " --min-repeat-entropy 1" # https://github.com/ekg/freebayes/issues/272
+        " --no-partial-observations" # https://github.com/ekg/freebayes/issues/272
+        " --min-alternate-fraction 0.05" # https://github.com/ekg/freebayes/issues/272 (@TCC more for higher depth?)
+        " --report-genotype-likelihood-max" # option suggested by EKG for no population assumptions
+        " --no-population-priors" # option suggested by EKG for no population assumptions
+        " --standard-filters"
+        " --bam-list {input[0]}"
+        " | bgzip -c > {output.out}.part"
+        " && mv '{output.out}.part' '{output.out}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+rule pfilt:
+    input:
+        ref=REFERENCE,
+        fbregion_vcf=os.path.join(OUTDIR, "fbregion-{n}.{region}.vcf.gz"),
+    output:
+        out=os.path.join(OUTDIR, "pfilt-{n}.{region}.vcf.gz"),
+    log:
+        os.path.join(OUTDIR, "pfilt-{n}.{region}.log")
+    threads: 2
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " echo 'region index: {wildcards.n}' &&"
+        " echo 'region: {wildcards.region}' &&"
+        " module load bcftools && which bcftools && bcftools --version &&"
+        " module load vcflib && which vcffilter &&"
+        " module load htslib && which bgzip && bgzip --version &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " bcftools view --trim-alt-alleles --exclude-uncalled -O v '{input.fbregion_vcf}'"
+        " |"
+        " vcffilter -f 'QUAL > 1 & SAF > 0 & SAR > 0 & RPR > 1 & RPL > 1'"
+        " |"
+        " vcfallelicprimitives -g -k -t VCFALLELICPRIMITIVES"
+        " |"
+        " bcftools norm --fasta-ref '{input.ref}' --check-ref e"
+        " |"
+        " vcffixup -"
+        " |"
+        " bcftools view --trim-alt-alleles --min-ac 1 --min-alleles 2 --exclude-uncalled -O z"
+        " > '{output.out}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+# Notes:
+# vcffilter -f 'QUAL > 1 & SAF > 0 & SAR > 0 & RPR > 1 & RPL > 1' suggested by EKG;
+#   >0 alt on F and >0 alt on R, >1 reads mapping to right and >1 mapping to left
+
+
+rule index_vcf:
+    input:
+        vcf="{fn}.vcf.gz"
+    output:
+        out="{fn}.vcf.gz.tbi"
+    log:
+        "{fn}.index_vcf.log"
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " module load bcftools && which bcftools && bcftools --version &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " bcftools index --tbi --force '{input.vcf}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+rule pconcat:
+    input:
+        vcfs=regions_file_to_pfilt_outfiles(),
+        vcf_indexes=[x+'.tbi' for x in regions_file_to_pfilt_outfiles()],
+    output:
+        out="pconcat.vcf.gz"
+    log:
+        "pconcat.log"
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " module load bcftools && which bcftools && bcftools --version &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " ulimit -n 16384 &&"
+        " "+REGIONS_LIST_TO_VCFS_LIST_EXEC+" "+OUTDIR+" &&"
+        " bcftools concat --allow-overlaps --rm-dups all -O z -o '{output.out}' -f regions_list_vcfs.txt"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+rule vcf_to_zarr:
+    input: 
+        vcf=rules.pconcat.output.out,
+        tbi=rules.pconcat.output.out+".tbi",
+        regions_file=REGIONS_FILE,
+    output:
+        zarr=directory(rules.pconcat.output.out+".zarr"),
+        flagfile="vcf_to_zarr.done",
+    log:
+        "vcf_to_zarr.log"
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " set +eu &&"
+        " module load anaconda3 && source `which activate` /share/lanzarolab/opt/conda/vgl/ &&"
+        " set -eu &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " "+VCF_TO_ZARR_EXEC+" '{input.vcf}' &&"
+        " chmod -R g+r '{output.zarr}' &&"
+        " touch '{output.flagfile}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
