@@ -1,0 +1,54 @@
+## Plot PCA - Aedes project
+
+library(ggplot2)
+library("ggpubr")
+library(RColorBrewer)
+library(ape)
+library(phangorn)
+library(seqinr)
+
+file = read.table("output_PCA.csv", sep=",", header=T)
+head(file)
+tail(file)
+class(file$cluster)
+unique(file$code3)
+
+nb.cols <- 16
+mycolors <- colorRampPalette(brewer.pal(8, "Set2"))(nb.cols)
+mycolors
+
+#PCA
+# PC1 & PC2
+ggplot(file, aes(X0, X1, color=code6)) +
+  geom_point(size=4.5, shape=21, color="black", stroke=0.5) +
+  geom_point(size=4, shape=19, alpha=0.7) +
+  scale_color_manual(values=c("#FFD92F", "#cab2d6", "#a6cee3", "darkgreen","darkorange",
+                              "#1f78b4", "#4daf4a","#6a3d9a", "#c51b7d","#b2df8a", "#e41a1c",
+                              "#67001f"), name = "Legend Title") +
+  theme_minimal() +
+  theme(panel.background = element_rect(fill = NA),
+        panel.grid.major = element_line(color = "white", size = 0.2),
+        panel.grid.minor = element_line(color = "white", size = 0.2)) +
+  coord_fixed() +
+  xlab("PC1 4.0%") +
+  ylab("PC2 2.3%") +
+  #guides(color = "none") +
+  lims(x = c(-50, 75), y = c(-70, 60))
+
+#PC3 & PC4
+ggplot(file, aes(X2, X3, color=code5)) +
+  geom_point(size=3.5, shape=21, color="black", stroke=0.5) +
+  geom_point(size=3, shape=19, alpha=0.9) +
+  scale_color_manual(values=c("#FFD92F", "#cab2d6", "#a6cee3", "darkgreen","darkorange",
+                              "#1f78b4", "#4daf4a","#6a3d9a", "#fb9a99","#b2df8a", "#e41a1c",
+                              "#67001f"), name = "Legend Title") +
+  theme_minimal() +
+  theme(panel.background = element_rect(fill = NA),
+        panel.grid.major = element_line(color = "white", size = 0.2),
+        panel.grid.minor = element_line(color = "white", size = 0.2)) +
+  coord_fixed() +
+  xlab("PC3 - 1.9%") +
+  ylab("PC4 - 1.6%") +
+  guides(color = "none") +
+  lims(x = c(-50, 75), y = c(-75, 75))
+
