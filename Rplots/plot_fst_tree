@@ -1,0 +1,46 @@
+## Plot PCA - Aedes project
+library(ggplot2)
+library("ggpubr")
+library(RColorBrewer)
+library(ape)
+library(phangorn)
+library(seqinr)
+
+file <- read.table("fst_file.csv", sep=",", header=T, row.names = 1)
+head(file)
+class(file)
+dist <- as.matrix(file)
+dist[dist< 0] <- 0
+head(dist)
+dist
+
+#Tree
+tr <- upgma(dist)
+tr <- nj(dist)
+
+plot(tr, "unrooted")
+#add.scale.bar(lwd = 1, col = "gray", length = 0.05)
+
+# Plot the unrooted tree with thicker lines and no branch labels
+plot(tr, "unrooted", edge.width = 3, show.tip.label = FALSE)
+add.scale.bar(lwd = 1, col = "gray", length = 0.05)
+
+# Save tree file for online configuration on https://itol.embl.de/
+ape::write.tree(tr, file='tree-code3-nj-california.txt') 
+
+library(ape)
+# Function to compute NJ tree on a subset of the data
+nj_tree <- function(data, indices) {
+  njs(data[indices, indices])
+}
+
+# Bootstrap the tree
+set.seed(123)  # for reproducibility, you can omit this line if you want
+boot_values <- boot.phylo(tr, nj_tree, x = as.matrix(dist), B = 1000)
+
+# Plot the tree with bootstrap values
+plot(tr, "unrooted", edge.width = 2, show.tip.label = T)
+
+nodelabels(boot_values, cex = 0.7, col = "blue", adj = c(1.5, 0.5))
+
+
