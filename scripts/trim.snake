@@ -1,0 +1,147 @@
+import sys
+import os
+import glob
+import itertools
+
+BASEDIR = 'path_to_samples'
+
+# Getting SAMPLES from a meta tsv file
+#SAMPLES = set([line.split('\t')[0].strip('\n') for i,line in enumerate(open('/data/seq_v2/trim/IB-Aaeg-01.tsv')) if i>0])
+# All samples in BASEDIR
+SAMPLES = [ os.path.split(x)[1] for x in glob.glob(os.path.join(BASEDIR,"*")) ]
+
+
+NUM_TRIMMOMATIC_THREADS=4
+
+NICE_LEVEL = 0
+DATE_CMD = "/bin/date -Is"
+TIME_EXEC = "/bin/time"
+TRIMMOMATIC_EXEC = "trimmomatic"
+
+
+# Create a list of all the run directories
+ALL_RUN_DIRS = list(itertools.chain.from_iterable(
+            [ glob.glob(os.path.join(BASEDIR, sample, "run_*")) for sample in SAMPLES ]
+            ))
+
+
+localrules: all, collect_trim_stats
+
+
+rule all:
+    input:
+        expand("{run_dir}/trim.done", run_dir=ALL_RUN_DIRS),
+        "trim_stats.tsv",
+
+
+rule collect_trim_stats:
+    input:
+        expand("{run_dir}/trim.done", run_dir=ALL_RUN_DIRS)
+    output:
+        "trim_stats.tsv"
+    run:
+        print(input)
+        with open(output[0],'w') as outfh:
+            # header
+            print(  "Sample",
+                    "Run",
+                    "Input Read Pairs",
+                    "Both Surviving",
+                    "BS%",
+                    "Forward Only Surviving",
+                    "FOS%",
+                    "Reverse Only Surviving",
+                    "ROS%",
+                    "Dropped",
+                    "D%",
+                    sep='\t', file=outfh)
+            for trim_log_fn in input:
+                print(trim_log_fn)
+                trim_log_fn = os.path.splitext(trim_log_fn)[0]+".log"
+                tmp = os.path.split(trim_log_fn)
+                tmp2, runname = os.path.split(tmp[0])
+                sample = os.path.split(tmp2)[1]
+                assert runname.startswith('run_')
+                runname = runname[4:]
+                print(sample, runname)
+                try:
+                    with open(trim_log_fn) as fh:
+                        dat = None
+                        for line in fh:
+                            if line.startswith('Input Read Pairs:'):
+                                if dat is not None:
+                                    print("WARNING: Cannot parse '{}': Multiple lines matching 'Input Read Pairs:'".format(trim_log_fn), file=sys.stderr)
+                                    print(sample, runname, "ERROR PARSING '{}': Multiple lines matching 'Input Read Pairs:'".format(trim_log_fn), sep='\t', file=outfh)
+                                    dat = "" # so we know not to output later
+                                    break
+                                line = line.split()
+                                dat = ( int(line[3]),
+                                        int(line[6]),
+                                        "{:.2f}%".format(100*float(line[6])/float(line[3])),
+                                        int(line[11]),
+                                        "{:.2f}%".format(100*float(line[11])/float(line[3])),
+                                        int(line[16]),
+                                        "{:.2f}%".format(100*float(line[16])/float(line[3])),
+                                        int(line[19]),
+                                        "{:.2f}%".format(100*float(line[19])/float(line[3])),
+                                        )
+                        if dat is None:
+                            print("WARNING: Cannot parse '{}': No line matching 'Input Read Pairs:' found".format(trim_log_fn), file=sys.stderr)
+                            print(sample, runname, "ERROR PARSING '{}': No line matching 'Input Read Pairs:' found".format(trim_log_fn), sep='\t', file=outfh)
+                        if dat != "":
+                            print(sample, runname, *dat, sep='\t', file=outfh)
+                        pass
+                except IOError:
+                    logging.warn("WARNING: Failed to open '{}'".format(trim_log_fn), file=sys.stderr)
+                    print(sample, runname, "FAILED TO OPEN '{}'".format(trim_log_fn), sep='\t', file=outfh)
+
+
+rule trim_run:
+    input:
+        adapters_file=BASEDIR+"/{sample}/run_{run}/trimming_adapters.fa",
+        raw_fastq_1=BASEDIR+"/{sample}/run_{run}/raw_1.fastq.gz",
+        raw_fastq_2=BASEDIR+"/{sample}/run_{run}/raw_2.fastq.gz",
+    output:
+        BASEDIR+"/{sample}/run_{run}/trim_pe1.fastq.gz",
+        BASEDIR+"/{sample}/run_{run}/trim_sing1.fastq.gz",
+        BASEDIR+"/{sample}/run_{run}/trim_pe2.fastq.gz",
+        BASEDIR+"/{sample}/run_{run}/trim_sing2.fastq.gz",
+        touch(BASEDIR+"/{sample}/run_{run}/trim.done"),
+    log:
+         BASEDIR+"/{sample}/run_{run}/trim.log"
+    threads: NUM_TRIMMOMATIC_THREADS
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " source modules.sh &&"
+        " module load trimmomatic && which trimmomatic &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " '"+TRIMMOMATIC_EXEC+"'"
+        " PE"
+        " -threads {threads}"
+        " -phred33"
+        " '{input.raw_fastq_1}'"
+        " '{input.raw_fastq_2}'"
+        " '{output[0]}'"
+        " '{output[1]}'"
+        " '{output[2]}'"
+        " '{output[3]}'"
+        " ILLUMINACLIP:'{input.adapters_file}':2:30:10"
+        " LEADING:3"
+        " TRAILING:3"
+        " SLIDINGWINDOW:4:15"
+        " MINLEN:36"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+
+rule tester:
+    output:
+        out=BASEDIR+"/{sample}/test.out",
+    log: BASEDIR+"/{sample}/test.log"
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " source modules.sh &&"
+        " module load samtools && which samtools && "
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " echo 'tester running' > '{output.out}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
