@@ -1,0 +1,44 @@
+# Campos M script, Nov 2019
+# ========================================================================================
+# --- Plot nucleotide diversity, pi 
+# ========================================================================================
+library(ggplot2)
+library(xtable)
+library(ggpubr)
+
+options(stringsAsFactors=FALSE)
+
+pi.out = list.files(path="Vcftools/Pi/Sub/", pattern="*.windowed.pi$", full.names=TRUE)
+pi.out
+pi.all = do.call(rbind, lapply(pi.out, function(x) {
+  this.pi = read.table(x, header=TRUE, sep="\t")
+  this.pi$pop = x
+  this.pi
+}))
+pi.all
+dim(pi.all)
+pi.all$pop = gsub("*.windowed.pi", "\\1", pi.all$pop)
+head(pi.all)
+tail(pi.all)
+
+ggplot(pi.all, aes(factor(pop),PI, fill=pop)) +
+  geom_boxplot(outlier.size=0.5, outlier.shape = NA) 
+
+
+unique(pi.all$pop)
+
+ggplot(pi.all, aes(factor(pop), PI*100, 
+                   fill=factor(pop))) +
+  geom_boxplot(outlier.size=0.5, outlier.shape = NA) +
+  xlab("") +
+  ylab(expression(atop("Nucleotide diversity"~pi))) +
+  #coord_flip()  +
+  theme_bw(base_size=11) +
+  #coord_cartesian(ylim = c(0, 0.005)) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = "black")) + 
+  scale_fill_manual(values=c( "#FFD92F", "#1f78b4", "#4daf4a")) +
+  theme(legend.position="none") 
+#  stat_compare_means(method="wilcox.test")
