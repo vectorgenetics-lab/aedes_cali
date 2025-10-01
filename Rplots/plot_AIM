@@ -1,0 +1,89 @@
+# Load required library
+library(ggplot2)
+
+# Read data from file
+your_data <- read.table("aim_file.txt", header = TRUE)
+
+# Create a boxplot
+ggplot(your_data, aes(x = class, y = value)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  xlab("Class") +
+  ylab("Value") +
+  ggtitle("Boxplot of Values by Class") +
+  theme_minimal()
+
+# Manually set the order of the classes and choose colors
+class_order <- c("GC2","CitrusHeights" ,"Central", "Clovis-2019","Stockton" ,"GC3")
+class_colors <- c("GC3" = "#4daf4a", "Central" = "#FFD92F", "Clovis-2019" = "darkgreen", "GC2" = "#1f78b4", "CitrusHeights" = "#a6cee3")
+
+# Create a boxplot
+ggplot(your_data, aes(x = factor(class, levels = class_order), y = value, fill = class)) +
+  geom_boxplot() +
+  scale_fill_manual(values = class_colors) +
+  xlab("") +
+  ylab("") +
+  theme_minimal() +
+  guides(fill = FALSE)
+
+ggplot(your_data, aes(x = factor(class, levels = class_order), y = value, fill = class)) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers
+  scale_fill_manual(values = class_colors) +
+  xlab("") +
+  ylab("") +
+  ggtitle("") +
+  theme_minimal() +
+  guides(fill = FALSE) +
+  theme(panel.grid = element_blank())  +
+  coord_flip()  # Flip the plot horizontally
+
+temp <- your_data[which(your_data$class == "CitrusHeights"),]
+min(temp$value)
+max(temp$value)
+
+###### SCATTER PLOT
+# Manually set the order of the classes and choose colors
+class_order <- c("GC2","CitrusHeights" ,"Central", "Clovis-2019","Stockton" ,"GC3")
+class_colors <- c("GC3" = "#4daf4a", "Central" = "#FFD92F", 
+                  "Clovis-2019" = "darkgreen", "GC2" = "#1f78b4", 
+                  "CitrusHeights" = "#a6cee3", "Stockton" = "#b2df8a")
+
+# Create a ranked scatter plot
+ggplot(your_data, aes(x = factor(class, levels = class_order), y = value, color = class)) +
+  geom_point(position = "jitter", alpha = 0.8, size = 3) +
+  geom_hline(yintercept = c(0, 50, 100), linetype = "solid", color = "gray") +  # Horizontal lines
+  scale_color_manual(values = class_colors) +
+  xlab("") +
+  ylab("Percentage of GC3 AIM") +
+  #ggtitle("Ranked Scatter Plot of Values by Class") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +  # Remove both vertical and horizontal gridlines
+  guides(color = F)
+
+# Create a ranked scatter plot
+ggplot(your_data, aes(x = rank(value), y = value, color = class)) +
+  geom_point(position = "jitter", alpha = 0.7, size = 3) +
+  scale_color_manual(values = class_colors) +
+  xlab("Rank") +
+  ylab("Value") +
+  ggtitle("Ranked Scatter Plot of Values by Class") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +  # Remove both vertical and horizontal gridlines
+  guides(fill = TRUE)
+
+ggplot(your_data, aes(x = rank(value), y = value, color = class)) +
+  geom_point(position = "jitter", alpha = 0.9, size = 3) +
+  scale_color_manual(values = class_colors) +
+  geom_hline(yintercept = c(0, 50, 100), linetype = "solid", color = "gray") +  # Horizontal lines
+  xlab("Individuals") +
+  ylab("Percentage of GC3 AIM") +
+  #ggtitle("Ranked Scatter Plot of Values by Class") +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +  # Remove both vertical and horizontal gridlines
+  guides(fill = TRUE)
+
+
+
+
