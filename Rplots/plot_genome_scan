@@ -1,0 +1,182 @@
+library(ggplot2)
+
+fst <- read.table("GC3_vs_Central-scan-100k.windowed.weir.fst", sep="\t", header=T)
+head(fst)
+chrs = c("1", "2", "3")
+fst$CHROM <- factor(fst$CHROM, levels = chrs)
+
+ggplot(fst, aes(BIN_START, MEAN_FST)) +
+  geom_line(color = "grey") +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +  # Add a vertical line at x = 0
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +  # Modify the x-axis label
+  ylab("Mean Fst") +  # Modify the y-axis label
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 1)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+
+
+####MULTIPLE LINES
+# Read data from files
+
+fst <- read.table("GC3_vs_Central-scan-100k.windowed.weir.fst", sep="\t", header=T)
+fst2 <- read.table("GC2_vs_Central-scan-100k.windowed.weir.fst", sep="\t", header=T)
+fst3 <- read.table("GC2_vs_GC3-scan-100k.windowed.weir.fst", sep="\t", header=T)
+
+mean(fst$MEAN_FST)
+mean(fst2$MEAN_FST)
+mean(fst3$MEAN_FST)
+
+# Set levels for the chromosome variable
+chrs = c("1", "2", "3")
+fst$CHROM <- factor(fst$CHROM, levels = chrs)
+fst2$CHROM <- factor(fst2$CHROM, levels = chrs)
+fst3$CHROM <- factor(fst3$CHROM, levels = chrs)
+
+# Combine data frames into one
+combined_data <- rbind(
+  data.frame(data = "fst", fst),
+  data.frame(data = "fst2", fst2),
+  data.frame(data = "fst3", fst3)
+)
+
+head(fst)
+
+# Plot using ggplot
+library(ggplot2)
+# Set manual color scheme
+color_scheme <- c("fst" = "#4daf4a", "fst2" = "#1f78b4", "fst3" = "gray")
+
+ggplot(fst3, aes(BIN_START, MEAN_FST)) +
+  geom_line(color = "gray", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  scale_color_manual(values = color_scheme) +  # Set manual color scheme
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+ggplot() +
+  geom_line(data = fst3, aes(BIN_START, MEAN_FST), color="gray",alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +
+  geom_rect(data = black_bars, aes(xmin = POS - 100000, xmax = POS + 100000, ymin = 0, ymax = 0.5), fill = "black", alpha = 0.5) +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  scale_color_manual(values = color_scheme) +
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+
+
+
+ggplot(combined_data, aes(BIN_START, MEAN_FST, color = data)) +
+  geom_line(alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  scale_color_manual(values = color_scheme) +  # Set manual color scheme
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+
+###### PLOT WITH SNPS
+# Read black bars data
+black_bars <- read.table("../AIM/positions.txt", sep="\t", header=TRUE)
+head(black_bars)
+class(black_bars$POS)
+
+
+# Plot using ggplot
+library(ggplot2)
+
+ggplot() +
+  geom_line(data = combined_data, aes(BIN_START, MEAN_FST, color = data), alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +
+  geom_rect(data = black_bars, aes(xmin = POS - 100000, xmax = POS + 100000, ymin = 0, ymax = 0.5), fill = "black", alpha = 0.5) +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  scale_color_manual(values = color_scheme) +
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+
+
+ggplot() +
+  geom_rect(data = black_bars, aes(xmin = POS - 100000, xmax = POS + 100000, ymin = 0, ymax = 0.5), fill = "black") +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.placement = "top")
+
+
+
+#---------Revision modification
+
+ggplot() +
+  geom_line(data = combined_data, aes(BIN_START, MEAN_FST, color = data), alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "solid", color = "black", linewidth = 0.5) +
+  geom_point(
+    data = black_bars,
+    aes(x = POS, y = 0.5),
+    color = "red3",
+    size = 1
+  ) +
+  facet_wrap(. ~ CHROM, nrow = 5, scales = "free_y") +
+  xlab("Genomic Position (Mb)") +
+  ylab("Mean Fst") +
+  scale_color_manual(values = color_scheme) +
+  guides(color = FALSE) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_x_continuous(labels = function(x) paste(x / 1000000, ""), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 1, by = 0.5)) +
+  theme_minimal() +
+  theme(
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    strip.placement = "top"
+  )
+
+
