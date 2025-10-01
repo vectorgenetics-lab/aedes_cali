@@ -1,0 +1,163 @@
+import sys
+import os
+import glob
+import itertools
+import subprocess
+
+BASEDIR = '/directory_to_samples' # Edit this
+
+# Getting SAMPLES from a meta tsv file
+# All samples in BASEDIR
+SAMPLES = [ os.path.split(x)[1] for x in glob.glob(os.path.join(BASEDIR,"*")) ]
+
+
+REFERENCE_FA = "path_to_reference_genome.fa" # Edit this
+
+
+NICE_LEVEL = 0
+SAMTOOLS_SORT_MAXMEM = '4G' # 8 GB for samtools sorting (overkill)
+
+DATE_CMD = "/bin/date -Is"
+TIME_EXEC = "bin/time"
+BWA_EXEC = "bwa"
+SAMTOOLS_EXEC = "samtools"
+SAMBAMBA_EXEC = "sambamba"
+INTERLEAVE_FQGZ_EXEC = "/interleave_fastq_gz.sh"
+
+
+# Create a list of all the run directories
+ALL_RUN_DIRS = list(itertools.chain.from_iterable(
+            [ glob.glob(os.path.join(BASEDIR, sample, "run_*")) for sample in SAMPLES ]
+            ))
+
+
+localrules: all, link_final_bam
+
+
+rule all:
+    input:
+        expand(os.path.join(BASEDIR,"{sample}/{sample}.bam"), sample=SAMPLES),
+        expand(os.path.join(BASEDIR,"{sample}/merged_markdup.bam"), sample=SAMPLES),
+        expand("{run_dir}/map.bam", run_dir=ALL_RUN_DIRS),
+
+
+rule link_final_bam:
+    input:
+        bam=BASEDIR+"/{sample}/merged_markdup.bam",
+        bai=BASEDIR+"/{sample}/merged_markdup.bam.bai",
+    output:
+        bam=BASEDIR+"/{sample}/{sample}.bam",
+        bai=BASEDIR+"/{sample}/{sample}.bai",
+        bambai=BASEDIR+"/{sample}/{sample}.bam.bai",
+    shell:
+        "ln -sfr '{input.bam}' '{output.bam}'"
+        " && ln -sfr '{input.bai}' '{output.bai}'"
+        " && ln -sfr '{input.bai}' '{output.bambai}'"
+
+
+rule map_run:
+    input:
+        ref=REFERENCE_FA,
+        pe1=BASEDIR+"/{sample}/run_{run}/trim_pe1.fastq.gz",
+        pe2=BASEDIR+"/{sample}/run_{run}/trim_pe2.fastq.gz",
+        sing1=BASEDIR+"/{sample}/run_{run}/trim_sing1.fastq.gz",
+        sing2=BASEDIR+"/{sample}/run_{run}/trim_sing2.fastq.gz",
+        RG_tags_file=BASEDIR+"/{sample}/run_{run}/_RG_TAGS",
+    output:
+        bam=BASEDIR+"/{sample}/run_{run}/map.bam"
+    log: BASEDIR+"/{sample}/run_{run}/map_run.log"
+    threads: 4 # was 12
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+        " source modules.sh &&"
+        " module load samtools && which samtools &&"
+        " module load bwa && which bwa &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " '"+INTERLEAVE_FQGZ_EXEC+"'"
+        " '{input.pe1}'"
+        " '{input.pe2}'"
+        " '{input.sing1}'"
+        " '{input.sing2}'"
+        " |"
+        " '"+BWA_EXEC+"'"
+        " mem"
+        " -t {threads}"
+        ' -R \\\"$(<{input.RG_tags_file})\\\"'
+        " -p" # smart pairing
+        " '{input.ref}'"
+        " -"
+        " |"
+        " '"+SAMTOOLS_EXEC+"' sort"
+        " -@ {threads}" # @TCC mem is per thread, so watch out
+        " -m "+SAMTOOLS_SORT_MAXMEM+
+        " -O bam -o '{output.bam}'"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+
+
+rule merge_runs:
+    input: 
+        #lambda wc: [ os.path.join(x,"merge.bam") for x in glob.glob(os.path.join(BASEDIR,wc.sample,"run_*")) ],
+        lambda wc: [ os.path.join(x,y) for x,y in 
+                itertools.product(
+                    glob.glob(os.path.join(BASEDIR,wc.sample,"run_*")), 
+                    ["map.bam"]
+                ) ],
+    output:
+        bam=temp(BASEDIR+"/{sample}/merged.bam"), # @TCC mark as temp to save on space?
+        bai=temp(BASEDIR+"/{sample}/merged.bam.bai"), # @TCC mark as temp to save on space?
+    log: BASEDIR+"/{sample}/merge_runs.log"
+    threads: 2
+    run:
+        if len(input) == 1: # only one run, so just index and link
+            print("only one run:")
+            shell(
+                "(( "+DATE_CMD+" > '{log}' &&"
+#                " module load sambamba && which sambamba &&"
+                " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+                " '"+SAMBAMBA_EXEC+"'"
+                " index"
+                " -t {threads}"
+                " '{input}'"
+                " && ln -sfr {input} {output.bam}"
+                " && ln -sfr {input}.bai {output.bai}"
+                " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+                )
+
+        elif len(input) > 1: # normal merge (automatically indexes)
+            print("only one run:")
+            shell(
+                "(( "+DATE_CMD+" > '{log}' &&"
+#                " module load sambamba && which sambamba &&"
+                " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+                " '"+SAMBAMBA_EXEC+"'"
+                " merge"
+                " -t {threads}"
+                " '{output.bam}'"
+                " {input}" # @TCC figure out how to quote each input filename
+                " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
+                )
+        else: # shouldn't get here
+            print("merge_runs NO INPUT MATCH")
+            os.exit(2)
+
+
+rule sambamba_markdup:
+    input: 
+        bam=BASEDIR+"/{sample}/{bamname}.bam",
+        bai=BASEDIR+"/{sample}/{bamname}.bam.bai",
+    output:
+        bam=BASEDIR+"/{sample}/{bamname}_markdup.bam",
+        bai=BASEDIR+"/{sample}/{bamname}_markdup.bam.bai",
+    log: BASEDIR+"/{sample}/{bamname}_markdup.log"
+    threads: 2
+    shell:
+        "(( "+DATE_CMD+" > '{log}' &&"
+#        " module load sambamba && which sambamba &&"
+        " nice -"+str(NICE_LEVEL)+" "+TIME_EXEC+" -v bash -c \""
+        " '"+SAMBAMBA_EXEC+"'"
+        " markdup"
+        " -t {threads}"
+        " --hash-table-size=1048576"  # default 262144
+        " {input.bam}"
+        " {output.bam}"
+        " \" ) >> '{log}' 2>&1 ) && [[ -s '{log}' ]]"
